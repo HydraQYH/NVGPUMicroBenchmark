@@ -35,6 +35,11 @@ __global__ void mbarrier_arrive_latency(long long* clocks) {
 #ifdef CLUSTER_ARRIVE
   uint32_t cta_id = cute::block_rank_in_cluster();
 #endif
+
+#ifdef ENABLE_WARMUP
+  ClusterBarrier::try_wait(mbarrier, 0);
+#endif
+
   __syncthreads();
   long long start_clock = clock64();
 #ifdef CLUSTER_ARRIVE

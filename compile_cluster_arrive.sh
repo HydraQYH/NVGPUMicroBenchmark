@@ -28,3 +28,30 @@ nvcc -O0 -std=c++17 --generate-line-info \
 
 ./cluster_arrive_cluster &> cluster_arrive_cluster.log
 ncu -f -o cluster_arrive_cluster --set full -k mbarrier_arrive_latency ./cluster_arrive_cluster
+
+nvcc -O0 -std=c++17 --generate-line-info \
+  -I${CUTLASS_PATH}/include \
+  "--generate-code=arch=compute_90a,code=[sm_90a]" \
+  -DCUTLASS_DEBUG_TRACE_LEVEL=0 \
+  -DENABLE_WARMUP=1 \
+  --expt-relaxed-constexpr \
+  -ftemplate-backtrace-limit=0 \
+  -o cluster_arrive_cta_warmup \
+  cluster_arrive.cu
+
+./cluster_arrive_cta_warmup &> cluster_arrive_cta_warmup.log
+ncu -f -o cluster_arrive_cta_warmup --set full -k mbarrier_arrive_latency ./cluster_arrive_cta_warmup
+
+nvcc -O0 -std=c++17 --generate-line-info \
+  -I${CUTLASS_PATH}/include \
+  "--generate-code=arch=compute_90a,code=[sm_90a]" \
+  -DCUTLASS_DEBUG_TRACE_LEVEL=0 \
+  -DENABLE_WARMUP=1 \
+  -DCLUSTER_ARRIVE \
+  --expt-relaxed-constexpr \
+  -ftemplate-backtrace-limit=0 \
+  -o cluster_arrive_cluster_warmup \
+  cluster_arrive.cu
+
+./cluster_arrive_cluster_warmup &> cluster_arrive_cluster_warmup.log
+ncu -f -o cluster_arrive_cluster_warmup --set full -k mbarrier_arrive_latency ./cluster_arrive_cluster_warmup
