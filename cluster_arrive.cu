@@ -16,7 +16,7 @@ __device__  __always_inline int ptx_add(int& a, int& b) {
   return c;
 }
 
-__global__ void alu_ops_kernel(long long* clocks) {
+__global__ void mbarrier_arrive_latency(long long* clocks) {
   using namespace cute;
   namespace cg = cooperative_groups;
   auto grid = cg::this_grid();
@@ -32,15 +32,25 @@ __global__ void alu_ops_kernel(long long* clocks) {
     ClusterBarrier::init(mbarrier, 128);
   }
   cluster_sync();
-
-  // uint32_t cta_id = cute::block_rank_in_cluster();
-
+#ifdef CLUSTER_ARRIVE
+  uint32_t cta_id = cute::block_rank_in_cluster();
+#endif
+  __syncthreads();
   long long start_clock = clock64();
-  ClusterBarrier::arrive(mbarrier); //, cta_id ^ 0x1, 0x1);
+#ifdef CLUSTER_ARRIVE
+  ClusterBarrier::arrive(mbarrier, cta_id ^ 0x1, 0x1); // , cta_id ^ 0x1, 0x1
+#else
+  ClusterBarrier::arrive(mbarrier);
+#endif
   ClusterBarrier::wait(mbarrier, 0);
   long long end_clock = clock64();
+  __syncthreads();
+
   ClusterBarrier::invalidate(mbarrier);
-  clocks[tid] = static_cast<long long>(end_clock - start_clock);
+  if (clocks) {
+    clocks[tid] = static_cast<long long>(end_clock - start_clock);
+  }
+  
 }
 
 int main(void) {
@@ -54,7 +64,7 @@ int main(void) {
   dim3 cluster(2, 1, 1);
   cutlass::ClusterLaunchParams params = {grid, block, cluster, smem_size};
 
-  void const* kernel_ptr = reinterpret_cast<void const*>(&alu_ops_kernel);
+  void const* kernel_ptr = reinterpret_cast<void const*>(&mbarrier_arrive_latency);
   CUTE_CHECK_ERROR(cudaFuncSetAttribute(
     kernel_ptr,
     cudaFuncAttributeMaxDynamicSharedMemorySize,
